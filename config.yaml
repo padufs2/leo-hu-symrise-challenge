@@ -1,0 +1,19 @@
+# config.yaml
+data_paths:
+  products: "data/products.csv"
+  sales_transactions: "data/sales_transactions.csv"
+  customer_feedback: "data/customer_feedback.csv"
+  ingredient_costs: "data/ingredient_costs.csv"
+
+database:
+  path: "output/symrise.db"
+  schema_path: "sql/schema.sql"
+
+quality_rules:
+  rating_min: 0
+  rating_max: 5
+  min_positive_value: 0   # pour quantity_kg, unit_price_usd, cost_per_kg_usd
+
+output:
+  data_quality_report: "output/data_quality_report.md"
+  log_file: "output/pipeline.log"
