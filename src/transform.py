@@ -67,3 +67,122 @@ def transform_products(df: pd.DataFrame) -> pd.DataFrame:
         logger.warning(f"products: launch_date manquant ou invalide pour {ids}")
 
     return df
+
+
+def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
+    df = df.copy()
+    before = len(df)
+
+    # PARSING DE DATE : comme pour products, on gère les formats mixtes
+    # pour ne pas perdre de dates valides écrites différemment.
+    df["transaction_date"] = pd.to_datetime(
+        df["transaction_date"], format="mixed", errors="coerce"
+    )
+
+    missing_dates = df["transaction_date"].isna()
+    if missing_dates.any():
+        ids = df.loc[missing_dates, "transaction_id"].tolist()
+        logger.warning(f"sales_transactions: transaction_date invalide pour {ids}")
+
+    # RÈGLE : un transaction_id doit être unique. Si on en trouve un dupliqué,
+    # ce sont probablement 2 vraies transactions différentes qui ont eu le
+    # même ID par erreur (pas un doublon à supprimer) — on les rend uniques
+    # plutôt que de perdre l'une des deux.
+    dup_mask = df.duplicated(subset="transaction_id", keep=False)
+
+    if dup_mask.any():
+        dup_ids = df.loc[dup_mask, "transaction_id"].unique().tolist()
+        logger.warning(
+            f"sales_transactions: transaction_id dupliqué(s) détecté(s) : {dup_ids}"
+        )
+
+        # On compte combien de fois on a déjà vu chaque ID, pour ajouter
+        # un suffixe uniquement à partir de la 2e occurrence.
+        counters = {}
+        new_ids = []
+        for tid in df["transaction_id"]:
+            counters[tid] = counters.get(tid, 0) + 1
+            if counters[tid] == 1:
+                new_ids.append(tid)  # première occurrence : on ne touche pas
+            else:
+                new_ids.append(f"{tid}_{counters[tid]}")  # 2e, 3e... : suffixe
+
+        df["transaction_id"] = new_ids
+        # ASSOMPTION : total_amount_usd = quantity_kg * unit_price_usd, sans
+        # taxes ni remises. On utilise cette formule uniquement pour recalculer
+        # les valeurs manquantes, pas pour écraser des valeurs déjà présentes
+        # (au cas où il y aurait une raison légitime à une différence, comme
+        # une remise commerciale qu'on ne veut pas supprimer silencieusement).
+        missing_total = df["total_amount_usd"].isna()
+
+        if missing_total.any():
+            ids = df.loc[missing_total, "transaction_id"].tolist()
+            logger.warning(
+                f"sales_transactions: total_amount_usd manquant pour {ids}, recalculé"
+            )
+
+            df.loc[missing_total, "total_amount_usd"] = (
+                df.loc[missing_total, "quantity_kg"]
+                * df.loc[missing_total, "unit_price_usd"]
+            )
+
+        # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
+        # products (nettoyée) est une référence orpheline — on ne peut pas la
+        # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
+        orphan_mask = ~df["product_id"].isin(valid_product_ids)
+
+        if orphan_mask.any():
+            orphan_rows = df.loc[orphan_mask, ["transaction_id", "product_id"]]
+            logger.warning(
+                f"sales_transactions: suppression de {orphan_mask.sum()} ligne(s) "
+                f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
+            )
+            df = df[~orphan_mask]
+    return df
+
+
+def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
+    df = df.copy()
+    # STANDARDISATION : uniformise la casse et enlève les espaces parasites
+    # (ex: "Yes ", "yes" -> "Yes") pour que les mêmes statuts
+    # soient bien reconnus comme identiques.
+    df["would_reorder"] = df["would_reorder"].str.strip().str.title()
+
+    RATING_MIN, RATING_MAX = 0, 5
+    RATING_COLUMNS = [
+        "quality_rating",
+        "performance_rating",
+        "value_rating",
+        "overall_satisfaction",
+    ]
+
+    for col in RATING_COLUMNS:
+        # à l'intérieur de la boucle, "col" prend successivement chaque nom de colonne
+        out_of_range = (df[col] < RATING_MIN) | (df[col] > RATING_MAX)
+
+        if out_of_range.any():
+            ids = df.loc[out_of_range, "feedback_id"].tolist()
+            logger.warning(
+                f"customer_feedback: {col} hors de [{RATING_MIN}, {RATING_MAX}] pour {ids}"
+            )
+            df.loc[out_of_range, col] = pd.NA
+
+    # PARSING DE DATE : comme pour products, on gère les formats mixtes
+    # pour ne pas perdre de dates valides écrites différemment.
+    df["feedback_date"] = pd.to_datetime(
+        df["feedback_date"], format="mixed", errors="coerce"
+    )
+    # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
+    # products (nettoyée) est une référence orpheline — on ne peut pas la
+    # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
+    orphan_mask = ~df["product_id"].isin(valid_product_ids)
+
+    if orphan_mask.any():
+        orphan_rows = df.loc[orphan_mask, ["feedback_id", "product_id"]]
+        logger.warning(
+            f"customer_feedback: suppression de {orphan_mask.sum()} ligne(s) "
+            f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
+        )
+        df = df[~orphan_mask]
+
+    return df
