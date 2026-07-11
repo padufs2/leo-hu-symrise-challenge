@@ -143,11 +143,17 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
 
 def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
     df = df.copy()
+    before = len(df)
+
     # STANDARDISATION : uniformise la casse et enlève les espaces parasites
     # (ex: "Yes ", "yes" -> "Yes") pour que les mêmes statuts
     # soient bien reconnus comme identiques.
     df["would_reorder"] = df["would_reorder"].str.strip().str.title()
 
+    # RÈGLE : toute note en dehors de [0, 5] est invalide -> mise à null.
+    # Appliqué aux 4 colonnes de notes de la même façon, plutôt que de ne
+    # traiter que la colonne où on a repéré le problème manuellement —
+    # ça attrape aussi d'éventuelles valeurs hors échelle non détectées.
     RATING_MIN, RATING_MAX = 0, 5
     RATING_COLUMNS = [
         "quality_rating",
@@ -157,9 +163,7 @@ def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame
     ]
 
     for col in RATING_COLUMNS:
-        # à l'intérieur de la boucle, "col" prend successivement chaque nom de colonne
         out_of_range = (df[col] < RATING_MIN) | (df[col] > RATING_MAX)
-
         if out_of_range.any():
             ids = df.loc[out_of_range, "feedback_id"].tolist()
             logger.warning(
@@ -167,16 +171,30 @@ def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame
             )
             df.loc[out_of_range, col] = pd.NA
 
+    # DÉCISION : quality_rating manquant -> on garde la ligne, on logue.
+    missing_quality = df["quality_rating"].isna()
+    if missing_quality.any():
+        ids = df.loc[missing_quality, "feedback_id"].tolist()
+        logger.warning(f"customer_feedback: quality_rating manquant pour {ids}")
+
+    # DÉCISION : customer_id manquant -> on garde la ligne, on logue.
+    missing_cust = df["customer_id"].isna() | (
+        df["customer_id"].astype(str).str.strip() == ""
+    )
+    if missing_cust.any():
+        ids = df.loc[missing_cust, "feedback_id"].tolist()
+        logger.warning(f"customer_feedback: customer_id manquant pour {ids}")
+
     # PARSING DE DATE : comme pour products, on gère les formats mixtes
     # pour ne pas perdre de dates valides écrites différemment.
     df["feedback_date"] = pd.to_datetime(
         df["feedback_date"], format="mixed", errors="coerce"
     )
-    # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
+
+    # RÈGLE : tout feedback dont le product_id n'existe pas dans la table
     # products (nettoyée) est une référence orpheline — on ne peut pas la
     # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
     orphan_mask = ~df["product_id"].isin(valid_product_ids)
-
     if orphan_mask.any():
         orphan_rows = df.loc[orphan_mask, ["feedback_id", "product_id"]]
         logger.warning(
@@ -185,4 +203,40 @@ def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame
         )
         df = df[~orphan_mask]
 
+    logger.info(f"customer_feedback: {before} lignes avant, {len(df)} lignes après")
     return df
+
+
+def transform_ingredient_costs(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    before = len(df)
+    df = df.drop_duplicates(
+        subset=["ingredient_name", "cost_per_kg_usd", "supplier"], keep="first"
+    )
+
+    # PARSING DE DATE : comme pour products, on gère les formats mixtes
+    # pour ne pas perdre de dates valides écrites différemment.
+    df["last_updated"] = pd.to_datetime(
+        df["last_updated"], format="mixed", errors="coerce"
+    )
+    logger.info(f"ingredient_costs: {before} lignes avant, {len(df)} lignes après")
+
+    return df
+
+
+def transform_all(raw: dict) -> dict:
+    """Run all transforms in dependency order (products first, since
+    sales and feedback need its product_id list for orphan checks)."""
+    products = transform_products(raw["products"])
+    valid_product_ids = set(products["product_id"])
+
+    sales = transform_sales(raw["sales_transactions"], valid_product_ids)
+    feedback = transform_feedback(raw["customer_feedback"], valid_product_ids)
+    costs = transform_ingredient_costs(raw["ingredient_costs"])
+
+    return {
+        "products": products,
+        "sales_transactions": sales,
+        "customer_feedback": feedback,
+        "ingredient_costs": costs,
+    }
