@@ -96,48 +96,47 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
             f"sales_transactions: transaction_id dupliqué(s) détecté(s) : {dup_ids}"
         )
 
-        # On compte combien de fois on a déjà vu chaque ID, pour ajouter
-        # un suffixe uniquement à partir de la 2e occurrence.
         counters = {}
         new_ids = []
         for tid in df["transaction_id"]:
             counters[tid] = counters.get(tid, 0) + 1
             if counters[tid] == 1:
-                new_ids.append(tid)  # première occurrence : on ne touche pas
+                new_ids.append(tid)
             else:
-                new_ids.append(f"{tid}_{counters[tid]}")  # 2e, 3e... : suffixe
+                new_ids.append(f"{tid}_{counters[tid]}")
 
         df["transaction_id"] = new_ids
-        # ASSOMPTION : total_amount_usd = quantity_kg * unit_price_usd, sans
-        # taxes ni remises. On utilise cette formule uniquement pour recalculer
-        # les valeurs manquantes, pas pour écraser des valeurs déjà présentes
-        # (au cas où il y aurait une raison légitime à une différence, comme
-        # une remise commerciale qu'on ne veut pas supprimer silencieusement).
-        missing_total = df["total_amount_usd"].isna()
 
-        if missing_total.any():
-            ids = df.loc[missing_total, "transaction_id"].tolist()
-            logger.warning(
-                f"sales_transactions: total_amount_usd manquant pour {ids}, recalculé"
-            )
+    # ASSOMPTION : total_amount_usd = quantity_kg * unit_price_usd, sans
+    # taxes ni remises. On utilise cette formule uniquement pour recalculer
+    # les valeurs manquantes, pas pour écraser des valeurs déjà présentes.
+    missing_total = df["total_amount_usd"].isna()
 
-            df.loc[missing_total, "total_amount_usd"] = (
-                df.loc[missing_total, "quantity_kg"]
-                * df.loc[missing_total, "unit_price_usd"]
-            )
+    if missing_total.any():
+        ids = df.loc[missing_total, "transaction_id"].tolist()
+        logger.warning(
+            f"sales_transactions: total_amount_usd manquant pour {ids}, recalculé"
+        )
 
-        # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
-        # products (nettoyée) est une référence orpheline — on ne peut pas la
-        # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
-        orphan_mask = ~df["product_id"].isin(valid_product_ids)
+        df.loc[missing_total, "total_amount_usd"] = (
+            df.loc[missing_total, "quantity_kg"]
+            * df.loc[missing_total, "unit_price_usd"]
+        )
 
-        if orphan_mask.any():
-            orphan_rows = df.loc[orphan_mask, ["transaction_id", "product_id"]]
-            logger.warning(
-                f"sales_transactions: suppression de {orphan_mask.sum()} ligne(s) "
-                f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
-            )
-            df = df[~orphan_mask]
+    # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
+    # products (nettoyée) est une référence orpheline — on ne peut pas la
+    # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
+    orphan_mask = ~df["product_id"].isin(valid_product_ids)
+
+    if orphan_mask.any():
+        orphan_rows = df.loc[orphan_mask, ["transaction_id", "product_id"]]
+        logger.warning(
+            f"sales_transactions: suppression de {orphan_mask.sum()} ligne(s) "
+            f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
+        )
+        df = df[~orphan_mask]
+
+    logger.info(f"sales_transactions: {before} lignes avant, {len(df)} lignes après")
     return df
 
 
