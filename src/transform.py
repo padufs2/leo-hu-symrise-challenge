@@ -5,66 +5,66 @@ logger = logging.getLogger(__name__)
 
 
 def transform_products(df: pd.DataFrame) -> pd.DataFrame:
-    # On travaille sur une copie pour ne jamais modifier le DataFrame original
+    # Work on a copy so the original DataFrame is never modified
     df = df.copy()
     before = len(df)
 
-    # RÈGLE : un product_id ne doit jamais apparaître plus d'une fois.
-    # keep="first" garde la première occurrence trouvée, supprime les autres.
+    # RULE: a product_id must never appear more than once.
+    # keep="first" keeps the first occurrence found, drops the rest.
     df = df.drop_duplicates(subset="product_id", keep="first")
     dropped = before - len(df)
     if dropped:
-        logger.info(f"products: {dropped} doublon(s) supprimé(s) sur product_id")
+        logger.info(f"products: {dropped} duplicate(s) removed on product_id")
 
-    # STANDARDISATION : uniformise la casse et enlève les espaces parasites
-    # (ex: "active ", "ACTIVE" -> "Active") pour que les mêmes statuts
-    # soient bien reconnus comme identiques.
+    # STANDARDIZATION: normalizes case and strips stray whitespace
+    # (e.g. "active ", "ACTIVE" -> "Active") so identical statuses
+    # are properly recognized as such.
     df["status"] = df["status"].str.strip().str.title()
 
-    # NETTOYAGE num_ingredients (en 3 temps) :
-    # 1) "NULL" est une chaîne de texte littérale dans le CSV, pas un vrai NaN
-    #    -> on la convertit en vraie valeur manquante pandas
+    # CLEANING num_ingredients (in 3 steps):
+    # 1) "NULL" is a literal text string in the CSV, not a real NaN
+    #    -> convert it to a proper pandas missing value
     df["num_ingredients"] = df["num_ingredients"].replace("NULL", pd.NA)
 
-    # 2) Une fois "NULL" retiré, on force la conversion numérique.
-    #    errors="coerce" transforme en NaN tout ce qui n'est pas un nombre valide,
-    #    au lieu de faire planter le programme.
+    # 2) Once "NULL" is removed, force numeric conversion.
+    #    errors="coerce" turns anything that isn't a valid number into NaN,
+    #    instead of crashing the program.
     df["num_ingredients"] = pd.to_numeric(df["num_ingredients"], errors="coerce")
 
-    # 3) RÈGLE : un nombre d'ingrédients ne peut jamais être négatif.
-    # DÉCISION : on met à null plutôt que de deviner la vraie valeur
-    # (ex: abs(-5) -> 5 serait une supposition non vérifiable).
-    masque = df["num_ingredients"] < 0
-    nb_negatifs = masque.sum()
-    if nb_negatifs:
+    # 3) RULE: a number of ingredients can never be negative.
+    # DECISION: set to null rather than guess the true value
+    # (e.g. abs(-5) -> 5 would be an unverifiable assumption).
+    mask = df["num_ingredients"] < 0
+    nb_negative = mask.sum()
+    if nb_negative:
         logger.warning(
-            f"products: {nb_negatifs} valeur(s) négative(s) dans num_ingredients, mise(s) à null"
+            f"products: {nb_negative} negative value(s) in num_ingredients, set to null"
         )
-        df.loc[masque, "num_ingredients"] = pd.NA
+        df.loc[mask, "num_ingredients"] = pd.NA
 
-    logger.info(f"products: {before} lignes avant, {len(df)} lignes après")
+    logger.info(f"products: {before} rows before, {len(df)} rows after")
 
-    # DÉCISION : product_name manquant -> on garde la ligne (le produit existe
-    # quand même) mais on logue quels product_id sont concernés pour traçabilité.
+    # DECISION: missing product_name -> keep the row (the product still
+    # exists) but log which product_id are affected for traceability.
     missing_name = df["product_name"].isna()
     if missing_name.any():
         ids = df.loc[missing_name, "product_id"].tolist()
-        logger.warning(f"products: product_name manquant pour {ids}")
+        logger.warning(f"products: product_name missing for {ids}")
 
-    # PARSING DE DATE : format="mixed" gère le cas où certaines lignes ont un
-    # format différent du reste (ex: P040 était en "15-12-2023" au lieu de
-    # "2023-12-15"). Sans ça, ces dates valides seraient perdues (-> NaT)
-    # alors qu'elles sont récupérables.
+    # DATE PARSING: format="mixed" handles the case where some rows use a
+    # different format than the rest (e.g. P040 was in "15-12-2023" instead
+    # of "2023-12-15"). Without this, those valid dates would be lost
+    # (-> NaT) even though they are recoverable.
     df["launch_date"] = pd.to_datetime(
         df["launch_date"], format="mixed", dayfirst=False, errors="coerce"
     )
 
-    # Les launch_date encore NaT après ce parsing intelligent sont de VRAIES
-    # valeurs manquantes d'origine (ex: P019), pas des erreurs de format.
+    # launch_date values still NaT after this smart parsing are TRUE
+    # originally missing values (e.g. P019), not format errors.
     missing_date = df["launch_date"].isna()
     if missing_date.any():
         ids = df.loc[missing_date, "product_id"].tolist()
-        logger.warning(f"products: launch_date manquant ou invalide pour {ids}")
+        logger.warning(f"products: launch_date missing or invalid for {ids}")
 
     return df
 
@@ -73,8 +73,8 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
     df = df.copy()
     before = len(df)
 
-    # PARSING DE DATE : comme pour products, on gère les formats mixtes
-    # pour ne pas perdre de dates valides écrites différemment.
+    # DATE PARSING: as with products, handle mixed formats so valid dates
+    # written differently aren't lost.
     df["transaction_date"] = pd.to_datetime(
         df["transaction_date"], format="mixed", errors="coerce"
     )
@@ -82,18 +82,18 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
     missing_dates = df["transaction_date"].isna()
     if missing_dates.any():
         ids = df.loc[missing_dates, "transaction_id"].tolist()
-        logger.warning(f"sales_transactions: transaction_date invalide pour {ids}")
+        logger.warning(f"sales_transactions: invalid transaction_date for {ids}")
 
-    # RÈGLE : un transaction_id doit être unique. Si on en trouve un dupliqué,
-    # ce sont probablement 2 vraies transactions différentes qui ont eu le
-    # même ID par erreur (pas un doublon à supprimer) — on les rend uniques
-    # plutôt que de perdre l'une des deux.
+    # RULE: a transaction_id must be unique. If a duplicate is found, it is
+    # probably 2 genuinely different transactions that ended up with the
+    # same ID by mistake (not a duplicate to drop) — we make them unique
+    # instead of losing one of them.
     dup_mask = df.duplicated(subset="transaction_id", keep=False)
 
     if dup_mask.any():
         dup_ids = df.loc[dup_mask, "transaction_id"].unique().tolist()
         logger.warning(
-            f"sales_transactions: transaction_id dupliqué(s) détecté(s) : {dup_ids}"
+            f"sales_transactions: duplicate transaction_id(s) detected: {dup_ids}"
         )
 
         counters = {}
@@ -107,15 +107,15 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
 
         df["transaction_id"] = new_ids
 
-    # ASSOMPTION : total_amount_usd = quantity_kg * unit_price_usd, sans
-    # taxes ni remises. On utilise cette formule uniquement pour recalculer
-    # les valeurs manquantes, pas pour écraser des valeurs déjà présentes.
+    # ASSUMPTION: total_amount_usd = quantity_kg * unit_price_usd, with no
+    # taxes or discounts. This formula is used only to recompute missing
+    # values, never to overwrite values that are already present.
     missing_total = df["total_amount_usd"].isna()
 
     if missing_total.any():
         ids = df.loc[missing_total, "transaction_id"].tolist()
         logger.warning(
-            f"sales_transactions: total_amount_usd manquant pour {ids}, recalculé"
+            f"sales_transactions: total_amount_usd missing for {ids}, recomputed"
         )
 
         df.loc[missing_total, "total_amount_usd"] = (
@@ -123,20 +123,20 @@ def transform_sales(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame:
             * df.loc[missing_total, "unit_price_usd"]
         )
 
-    # RÈGLE : toute transaction dont le product_id n'existe pas dans la table
-    # products (nettoyée) est une référence orpheline — on ne peut pas la
-    # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
+    # RULE: any transaction whose product_id does not exist in the (cleaned)
+    # products table is an orphan reference — it cannot be kept because it
+    # would violate the FOREIGN KEY constraint at load time.
     orphan_mask = ~df["product_id"].isin(valid_product_ids)
 
     if orphan_mask.any():
         orphan_rows = df.loc[orphan_mask, ["transaction_id", "product_id"]]
         logger.warning(
-            f"sales_transactions: suppression de {orphan_mask.sum()} ligne(s) "
-            f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
+            f"sales_transactions: removing {orphan_mask.sum()} row(s) "
+            f"with invalid product_id:\n{orphan_rows.to_string(index=False)}"
         )
         df = df[~orphan_mask]
 
-    logger.info(f"sales_transactions: {before} lignes avant, {len(df)} lignes après")
+    logger.info(f"sales_transactions: {before} rows before, {len(df)} rows after")
     return df
 
 
@@ -144,15 +144,15 @@ def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame
     df = df.copy()
     before = len(df)
 
-    # STANDARDISATION : uniformise la casse et enlève les espaces parasites
-    # (ex: "Yes ", "yes" -> "Yes") pour que les mêmes statuts
-    # soient bien reconnus comme identiques.
+    # STANDARDIZATION: normalizes case and strips stray whitespace
+    # (e.g. "Yes ", "yes" -> "Yes") so identical statuses
+    # are properly recognized as such.
     df["would_reorder"] = df["would_reorder"].str.strip().str.title()
 
-    # RÈGLE : toute note en dehors de [0, 5] est invalide -> mise à null.
-    # Appliqué aux 4 colonnes de notes de la même façon, plutôt que de ne
-    # traiter que la colonne où on a repéré le problème manuellement —
-    # ça attrape aussi d'éventuelles valeurs hors échelle non détectées.
+    # RULE: any rating outside [0, 5] is invalid -> set to null.
+    # Applied identically to all 4 rating columns, rather than only the
+    # column where the issue was manually spotted — this also catches any
+    # undetected out-of-range values.
     RATING_MIN, RATING_MAX = 0, 5
     RATING_COLUMNS = [
         "quality_rating",
@@ -166,43 +166,43 @@ def transform_feedback(df: pd.DataFrame, valid_product_ids: set) -> pd.DataFrame
         if out_of_range.any():
             ids = df.loc[out_of_range, "feedback_id"].tolist()
             logger.warning(
-                f"customer_feedback: {col} hors de [{RATING_MIN}, {RATING_MAX}] pour {ids}"
+                f"customer_feedback: {col} out of [{RATING_MIN}, {RATING_MAX}] for {ids}"
             )
             df.loc[out_of_range, col] = pd.NA
 
-    # DÉCISION : quality_rating manquant -> on garde la ligne, on logue.
+    # DECISION: missing quality_rating -> keep the row, log it.
     missing_quality = df["quality_rating"].isna()
     if missing_quality.any():
         ids = df.loc[missing_quality, "feedback_id"].tolist()
-        logger.warning(f"customer_feedback: quality_rating manquant pour {ids}")
+        logger.warning(f"customer_feedback: quality_rating missing for {ids}")
 
-    # DÉCISION : customer_id manquant -> on garde la ligne, on logue.
+    # DECISION: missing customer_id -> keep the row, log it.
     missing_cust = df["customer_id"].isna() | (
         df["customer_id"].astype(str).str.strip() == ""
     )
     if missing_cust.any():
         ids = df.loc[missing_cust, "feedback_id"].tolist()
-        logger.warning(f"customer_feedback: customer_id manquant pour {ids}")
+        logger.warning(f"customer_feedback: customer_id missing for {ids}")
 
-    # PARSING DE DATE : comme pour products, on gère les formats mixtes
-    # pour ne pas perdre de dates valides écrites différemment.
+    # DATE PARSING: as with products, handle mixed formats so valid dates
+    # written differently aren't lost.
     df["feedback_date"] = pd.to_datetime(
         df["feedback_date"], format="mixed", errors="coerce"
     )
 
-    # RÈGLE : tout feedback dont le product_id n'existe pas dans la table
-    # products (nettoyée) est une référence orpheline — on ne peut pas la
-    # garder car elle violerait la contrainte FOREIGN KEY lors du chargement.
+    # RULE: any feedback whose product_id does not exist in the (cleaned)
+    # products table is an orphan reference — it cannot be kept because it
+    # would violate the FOREIGN KEY constraint at load time.
     orphan_mask = ~df["product_id"].isin(valid_product_ids)
     if orphan_mask.any():
         orphan_rows = df.loc[orphan_mask, ["feedback_id", "product_id"]]
         logger.warning(
-            f"customer_feedback: suppression de {orphan_mask.sum()} ligne(s) "
-            f"avec product_id invalide :\n{orphan_rows.to_string(index=False)}"
+            f"customer_feedback: removing {orphan_mask.sum()} row(s) "
+            f"with invalid product_id:\n{orphan_rows.to_string(index=False)}"
         )
         df = df[~orphan_mask]
 
-    logger.info(f"customer_feedback: {before} lignes avant, {len(df)} lignes après")
+    logger.info(f"customer_feedback: {before} rows before, {len(df)} rows after")
     return df
 
 
@@ -213,12 +213,12 @@ def transform_ingredient_costs(df: pd.DataFrame) -> pd.DataFrame:
         subset=["ingredient_name", "cost_per_kg_usd", "supplier"], keep="first"
     )
 
-    # PARSING DE DATE : comme pour products, on gère les formats mixtes
-    # pour ne pas perdre de dates valides écrites différemment.
+    # DATE PARSING: as with products, handle mixed formats so valid dates
+    # written differently aren't lost.
     df["last_updated"] = pd.to_datetime(
         df["last_updated"], format="mixed", errors="coerce"
     )
-    logger.info(f"ingredient_costs: {before} lignes avant, {len(df)} lignes après")
+    logger.info(f"ingredient_costs: {before} rows before, {len(df)} rows after")
 
     return df
 

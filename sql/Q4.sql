@@ -1,9 +1,9 @@
--- Q4 : Produits avec tendance de vente en déclin (Q2 vs Q3 2024)
--- NOTE : les données s'arrêtent au 20 août 2024, donc Q3 (juil-sept) est
--- INCOMPLET (il manque tout septembre). La comparaison Q2 (complet) vs
--- Q3 (partiel) est donc une comparaison volume-à-volume imparfaite —
--- un produit peut sembler "en déclin" simplement parce que Q3 a moins
--- de jours de données, pas une vraie baisse de demande.
+-- Q4: Products with a declining sales trend (Q2 vs Q3 2024)
+-- NOTE: the data stops on August 20, 2024, so Q3 (Jul-Sep) is
+-- INCOMPLETE (all of September is missing). The Q2 (complete) vs
+-- Q3 (partial) comparison is therefore an imperfect volume-to-volume
+-- comparison — a product may appear to be "declining" simply because
+-- Q3 has fewer days of data, not a genuine drop in demand.
 WITH quarterly_revenue AS (
     SELECT
         product_id,

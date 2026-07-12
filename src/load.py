@@ -5,15 +5,15 @@ logger = logging.getLogger(__name__)
 
 
 def create_schema(conn, schema_path):
-    """Exécute le fichier schema.sql pour créer les tables."""
+    """Runs the schema.sql file to create the tables."""
     with open(schema_path, "r") as f:
         schema_sql = f.read()
     conn.executescript(schema_sql)
-    logger.info(f"Schéma créé avec succès depuis {schema_path}")
+    logger.info(f"Schema created successfully from {schema_path}")
 
 
 def load_all(clean_data: dict, config: dict):
-    """Insère les DataFrames nettoyés dans la base SQLite."""
+    """Inserts the cleaned DataFrames into the SQLite database."""
 
     db_path = config["database"]["path"]
     schema_path = config["database"]["schema_path"]
@@ -31,7 +31,7 @@ def load_all(clean_data: dict, config: dict):
     for key, table_name in table_names.items():
         df = clean_data[key]
         df.to_sql(table_name, conn, if_exists="append", index=False)
-        logger.info(f"{table_name}: {len(df)} lignes insérées")
+        logger.info(f"{table_name}: {len(df)} rows inserted")
 
     conn.close()
-    logger.info(f"Chargement terminé, base de données : {db_path}")
+    logger.info(f"Load complete, database: {db_path}")

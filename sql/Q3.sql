@@ -1,11 +1,11 @@
--- Q3 : Relation entre num_ingredients et satisfaction client
--- MÉTHODE : on regroupe les produits par tranches de complexité (nombre
--- d'ingrédients), et on calcule la satisfaction moyenne par tranche pour
--- observer une éventuelle tendance.
--- NOTE : num_ingredients contient des NULL (valeurs invalides nettoyées
--- en amont dans transform_products.py, ex: -5 mis à null) — ces lignes
--- sont explicitement exclues ici avec WHERE p.num_ingredients IS NOT NULL,
--- plutôt que de compter sur le comportement implicite de AVG().
+-- Q3: Relationship between num_ingredients and customer satisfaction
+-- METHOD: products are grouped into complexity brackets (number of
+-- ingredients), and average satisfaction is computed per bracket to
+-- observe a possible trend.
+-- NOTE: num_ingredients contains NULLs (invalid values cleaned upstream
+-- in transform_products.py, e.g. -5 set to null) — these rows are
+-- explicitly excluded here with WHERE p.num_ingredients IS NOT NULL,
+-- rather than relying on the implicit behavior of AVG().
 SELECT 
     CASE 
         WHEN p.num_ingredients BETWEEN 0 AND 5 THEN '0-5'

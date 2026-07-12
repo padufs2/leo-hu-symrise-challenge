@@ -1,12 +1,12 @@
 -- ============================================
--- Q1 : Top 5 catégories de produits par revenu
+-- Q1: Top 5 product categories by revenue
 -- ============================================
 
--- NIVEAU 1 : par category (Flavor / Fragrance)
--- Note : il n'existe que 2 valeurs uniques dans products.category,
--- donc un "top 5" n'a pas vraiment de sens à ce niveau de granularité
--- (le LIMIT 5 ne changera rien, on aura toujours 2 lignes max).
-SELECT 
+-- LEVEL 1: by category (Flavor / Fragrance)
+-- Note: there are only 2 unique values in products.category,
+-- so a "top 5" doesn't really make sense at this granularity
+-- (the LIMIT 5 won't change anything, we'll always get at most 2 rows).
+SELECT
     p.category,
     SUM(s.total_amount_usd) AS total_revenue
 FROM sales_transactions s
@@ -15,12 +15,12 @@ GROUP BY p.category
 ORDER BY total_revenue DESC
 LIMIT 5;
 
--- NIVEAU 2 : par subcategory (Fresh, Sweet, Aquatic, Fruity, Oriental, ...)
--- DÉCISION : products.subcategory a 13 valeurs uniques, ce qui permet un
--- vrai "top 5" pertinent pour identifier les segments les plus rentables.
--- On considère ce niveau plus actionnable pour répondre à l'intention
--- business de la question, même si la question mentionne "category".
-SELECT 
+-- LEVEL 2: by subcategory (Fresh, Sweet, Aquatic, Fruity, Oriental, ...)
+-- DECISION: products.subcategory has 13 unique values, which allows for a
+-- real, meaningful "top 5" to identify the most profitable segments.
+-- This level is considered more actionable for answering the business
+-- intent of the question, even though the question mentions "category".
+SELECT
     p.subcategory,
     SUM(s.total_amount_usd) AS total_revenue
 FROM sales_transactions s

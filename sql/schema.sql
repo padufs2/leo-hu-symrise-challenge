@@ -2,7 +2,7 @@
 -- Symrise Data Engineering Challenge - Schema
 -- ============================================
 
--- Table dimension : produits
+-- Dimension table: products
 CREATE TABLE IF NOT EXISTS products (
     product_id          TEXT PRIMARY KEY,
     product_name         TEXT,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS products (
     region_developed     TEXT NOT NULL
 );
 
--- Table dimension : coûts des ingrédients
+-- Dimension table: ingredient costs
 CREATE TABLE IF NOT EXISTS ingredient_costs (
     ingredient_id     TEXT PRIMARY KEY,
     ingredient_name   TEXT NOT NULL UNIQUE,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS ingredient_costs (
     category          TEXT NOT NULL
 );
 
--- Table de faits : transactions de vente
+-- Fact table: sales transactions
 CREATE TABLE IF NOT EXISTS sales_transactions (
     transaction_id     TEXT PRIMARY KEY,
     product_id         TEXT NOT NULL,
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS sales_transactions (
     FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
 
--- Table de faits : feedback client
--- Échelle de notation : 0-5 (déduite empiriquement, voir README)
+-- Fact table: customer feedback
+-- Rating scale: 0-5 (deduced empirically, see README)
 CREATE TABLE IF NOT EXISTS customer_feedback (
     feedback_id            TEXT PRIMARY KEY,
     product_id             TEXT NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS customer_feedback (
     FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
 
--- Table de logging : lignes rejetées pendant le nettoyage
+-- Logging table: rows rejected during cleaning
 CREATE TABLE IF NOT EXISTS rejected_rows (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     source_table    TEXT NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS rejected_rows (
     rejected_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Index utiles pour les jointures fréquentes (Q1-Q5)
+-- Useful indexes for frequent joins (Q1-Q5)
 CREATE INDEX IF NOT EXISTS idx_sales_product ON sales_transactions(product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales_transactions(transaction_date);
 CREATE INDEX IF NOT EXISTS idx_feedback_product ON customer_feedback(product_id);

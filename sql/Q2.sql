@@ -1,15 +1,15 @@
--- Q2 : Région avec la meilleure satisfaction client moyenne
--- ASSOMPTION : customer_feedback n'a pas de colonne region, donc on
--- la déduit en joignant sur (customer_id, product_id) à sales_transactions.
--- Vérifié : sur 89 paires (customer_id, product_id), aucune n'a de région
--- différente selon la transaction -> hypothèse "1 client + 1 produit =
--- 1 région stable" confirmée par les données.
+-- Q2: Region with the best average customer satisfaction
+-- ASSUMPTION: customer_feedback has no region column, so it is inferred
+-- by joining on (customer_id, product_id) to sales_transactions.
+-- Verified: across 89 (customer_id, product_id) pairs, none has a
+-- different region across transactions -> the "1 customer + 1 product =
+-- 1 stable region" hypothesis is confirmed by the data.
 --
--- CORRECTION : une paire (C011, P011) a 2 transactions distinctes (même
--- région LATAM les 2 fois). Sans précaution, un JOIN direct dupliquerait
--- l'avis client correspondant. On utilise donc SELECT DISTINCT côté
--- sales_transactions pour ne garder qu'une seule ligne (customer_id,
--- product_id, region) avant de joindre.
+-- FIX: one pair (C011, P011) has 2 distinct transactions (same LATAM
+-- region both times). Without care, a direct JOIN would duplicate the
+-- corresponding customer feedback. We therefore use SELECT DISTINCT on
+-- the sales_transactions side to keep only one row (customer_id,
+-- product_id, region) before joining.
 SELECT 
     sr.region,
     ROUND(AVG(f.overall_satisfaction), 4) AS avg_satisfaction

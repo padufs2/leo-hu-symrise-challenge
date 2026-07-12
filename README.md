@@ -1,120 +1,120 @@
 # Symrise Data Engineering Challenge — Léo Hu
 
-Solution au challenge de data engineering Symrise : pipeline ETL (Extract, Transform, Load) 
-en Python + SQLite, avec réponses aux 5 questions business.
+Solution to the Symrise data engineering challenge: an ETL (Extract, Transform, Load) pipeline
+in Python + SQLite, with answers to the 5 business questions.
 
 ---
 
-## Structure du projet
+## Project structure
 ```
 leo-hu-symrise-challenge/
 ├── README.md
 ├── requirements.txt
 ├── config.yaml
-├── data/                       # CSV sources (non versionnés si volumineux)
+├── data/                       # Source CSVs (not versioned if large)
 ├── src/
-│   ├── config.py               # Chargement de config.yaml
-│   ├── extract.py               # Lecture des 4 CSV
-│   ├── transform.py             # Nettoyage et validation
-│   ├── load.py                  # Création du schéma + insertion SQLite
-│   └── main.py                  # Orchestration du pipeline complet
+│   ├── config.py               # Loads config.yaml
+│   ├── extract.py               # Reads the 4 CSVs
+│   ├── transform.py             # Cleaning and validation
+│   ├── load.py                  # Schema creation + SQLite insertion
+│   └── main.py                  # Orchestrates the full pipeline
 ├── sql/
-│   ├── schema.sql                # Définition des tables
-│   └── queries.sql               # Les 5 requêtes business
+│   ├── schema.sql                # Table definitions
+│   └── queries.sql               # The 5 business queries
 └── output/
-    ├── symrise.db                 # Base de données finale
-    ├── pipeline.log                # Logs d'exécution
-    ├── data_quality_report.md      # Problèmes détectés et corrigés
-    └── business_answers.md         # Réponses aux 5 questions
+    ├── symrise.db                 # Final database
+    ├── pipeline.log                # Execution logs
+    ├── data_quality_report.md      # Issues detected and fixed
+    └── business_answers.md         # Answers to the 5 questions
 ```
 
 ## Setup
 
-**Prérequis :** Python 3.12+
+**Prerequisites:** Python 3.12+
 
 ```bash
-# Créer et activer l'environnement virtuel
+# Create and activate the virtual environment
 python3 -m venv venv
-source venv/bin/activate        # Windows : venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 
-# Installer les dépendances
+# Install dependencies
 pip install -r requirements.txt
 ```
 
 ---
 
-## Comment lancer le pipeline
+## How to run the pipeline
 
 ```bash
 mkdir -p output
 uv run main.py
 ```
 
-Le pipeline va, dans l'ordre :
-1. Charger `config.yaml`
-2. Lire les 4 CSV depuis `data/`
-3. Nettoyer et valider les données (voir `output/data_quality_report.md`)
-4. Créer le schéma SQLite (`sql/schema.sql`) et y insérer les données propres
-5. Générer `output/symrise.db` et `output/pipeline.log`
+The pipeline will, in order:
+1. Load `config.yaml`
+2. Read the 4 CSVs from `data/`
+3. Clean and validate the data (see `output/data_quality_report.md`)
+4. Create the SQLite schema (`sql/schema.sql`) and insert the clean data
+5. Generate `output/symrise.db` and `output/pipeline.log`
 
-## Comment exécuter les requêtes business
+## How to run the business queries
 
 ```bash
 sqlite3 output/symrise.db
 .read sql/queries.sql
 ```
 
-Ou directement, pour une requête spécifique :
+Or directly, for a specific query:
 ```bash
 sqlite3 output/symrise.db < sql/queries.sql
 ```
 
-Les résultats commentés sont disponibles dans `output/business_answers.md`.
+Commented results are available in `output/business_answers.md`.
 
 ---
 
 ## Design decisions & assumptions
 
 ### Architecture
-- **Python + pandas** pour l'extraction et le nettoyage, **SQLite** pour le stockage et l'analyse. Choix dimensionné au volume réel des données (quelques dizaines à centaines de lignes par table) — un outil comme Databricks ou dbt serait surdimensionné ici, mais serait pertinent si le volume grandissait significativement (voir section "Pistes d'amélioration").
-- **Schéma en étoile simplifié** : `products` et `ingredient_costs` comme tables dimension, `sales_transactions` et `customer_feedback` comme tables de faits.
-- **Configuration centralisée** (`config.yaml`) : chemins de fichiers et seuils de validation ne sont jamais codés en dur dans le code Python.
+- **Python + pandas** for extraction and cleaning, **SQLite** for storage and analysis. This choice is sized to the actual data volume (a few dozen to a few hundred rows per table) — a tool like Databricks or dbt would be overkill here, but would become relevant if the volume grew significantly (see the "Improvement ideas" section).
+- **Simplified star schema**: `products` and `ingredient_costs` as dimension tables, `sales_transactions` and `customer_feedback` as fact tables.
+- **Centralized configuration** (`config.yaml`): file paths and validation thresholds are never hardcoded in the Python code.
 
-### Principe de nettoyage général
-Pour toute valeur invalide dont la vraie valeur ne peut pas être récupérée avec certitude, la donnée est mise à `NULL` plutôt que devinée ou fabriquée. Le détail complet des problèmes détectés et des décisions prises est dans `output/data_quality_report.md`.
+### General cleaning principle
+For any invalid value whose true value cannot be recovered with certainty, the data is set to `NULL` rather than guessed or fabricated. The full detail of the issues detected and the decisions made is in `output/data_quality_report.md`.
 
-Toutes les règles de nettoyage sont **génériques** (basées sur des conditions, pas sur des identifiants de lignes spécifiques) — elles s'appliqueraient automatiquement à tout nouveau jeu de données présentant les mêmes types de problèmes.
+All cleaning rules are **generic** (based on conditions, not on specific row identifiers) — they would automatically apply to any new dataset presenting the same types of issues.
 
-### Échelle de notation client (0-5)
-Non documentée dans les fichiers sources. Déduite empiriquement du fait que `performance_rating` et `value_rating` plafonnent exactement à 5.0 sans jamais le dépasser. Appliquée de façon cohérente entre la validation Python (`transform.py`) et les contraintes `CHECK` du schéma SQL.
+### Customer rating scale (0-5)
+Not documented in the source files. Deduced empirically from the fact that `performance_rating` and `value_rating` cap exactly at 5.0 without ever exceeding it. Applied consistently between Python validation (`transform.py`) and the SQL schema's `CHECK` constraints.
 
-### Jointure textuelle products ↔ ingredient_costs
-`products.primary_ingredient` (texte) est relié à `ingredient_costs.ingredient_name` (texte), faute d'identifiant commun dans les données sources. Vérifié comme fonctionnel sur ce jeu de données (aucune valeur orpheline), mais plus fragile qu'une vraie clé étrangère — sensible à la casse et aux fautes de frappe.
+### Text join between products and ingredient_costs
+`products.primary_ingredient` (text) is linked to `ingredient_costs.ingredient_name` (text), due to the lack of a common identifier in the source data. Verified as functional on this dataset (no orphan values), but more fragile than a real foreign key — sensitive to case and typos.
 
-### Calcul de marge (Q5)
-Basé uniquement sur l'ingrédient **principal** de chaque produit, faute de table de composition multi-ingrédients dans les données. C'est donc une approximation de marge, pas un coût de revient complet.
-
----
-
-## Limites connues et hypothèses à vérifier
-
-- **Q2 (satisfaction par région)** : `customer_feedback` n'a pas de colonne région ; elle est déduite via `(customer_id, product_id)` en supposant qu'un client achète toujours un produit donné depuis la même région — hypothèse vérifiée sur ce jeu de données mais non garantie en général.
-- **Q3 (complexité vs satisfaction)** : la tranche 0-5 ingrédients ne contient qu'un seul produit, rendant sa moyenne peu représentative.
-- **Q4 (déclin trimestriel)** : les données s'arrêtent le 20 août 2024, rendant Q3 incomplet. Seuls 8 produits sur 40 ont des données dans les deux trimestres comparés.
-
-Le détail complet de chaque limite est documenté directement en commentaire dans `sql/queries.sql` et dans `output/business_answers.md`.
+### Margin calculation (Q5)
+Based solely on the **primary** ingredient of each product, due to the lack of a multi-ingredient composition table in the data. This is therefore a margin approximation, not a full cost of goods sold.
 
 ---
 
-## Pistes d'amélioration (si le projet devait grandir)
+## Known limitations and assumptions to verify
 
-- **Table de composition multi-ingrédients** par produit, pour un calcul de marge précis (au lieu de l'ingrédient principal seul).
-- **ID d'ingrédient plutôt que nom** comme clé de jointure entre `products` et `ingredient_costs`, pour éliminer la fragilité textuelle.
-- **Table `rejected_rows`** (déjà présente dans le schéma) : actuellement non utilisée par le pipeline (les rejets sont tracés via les logs), mais pourrait être peuplée pour une traçabilité interrogeable en SQL.
-- À plus grande échelle (millions de lignes, sources multiples, temps réel), un stack type dbt + entrepôt cloud (Snowflake/BigQuery) apporterait la gestion de dépendances et les tests intégrés que ce pipeline Python + SQLite n'offre pas nativement.
+- **Q2 (satisfaction by region)**: `customer_feedback` has no region column; it is inferred via `(customer_id, product_id)`, assuming a customer always buys a given product from the same region — an assumption verified on this dataset but not guaranteed in general.
+- **Q3 (complexity vs. satisfaction)**: the 0-5 ingredient bracket contains only a single product, making its average not very representative.
+- **Q4 (quarterly decline)**: the data stops on August 20, 2024, making Q3 incomplete. Only 8 out of 40 products have data in both compared quarters.
+
+The full detail of each limitation is documented directly as comments in `sql/queries.sql` and in `output/business_answers.md`.
 
 ---
 
-## Auteur
+## Improvement ideas (if the project were to grow)
+
+- **Multi-ingredient composition table** per product, for an accurate margin calculation (instead of the primary ingredient alone).
+- **Ingredient ID instead of name** as the join key between `products` and `ingredient_costs`, to eliminate the text-based fragility.
+- **`rejected_rows` table** (already present in the schema): currently unused by the pipeline (rejections are tracked via logs), but could be populated for SQL-queryable traceability.
+- At larger scale (millions of rows, multiple sources, real time), a stack like dbt + a cloud warehouse (Snowflake/BigQuery) would provide the dependency management and built-in tests that this Python + SQLite pipeline doesn't offer natively.
+
+---
+
+## Author
 
 Léo Hu

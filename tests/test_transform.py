@@ -1,8 +1,8 @@
 """
 tests/test_transform.py
-Tests unitaires pour les fonctions de transform.py.
-Chaque test fabrique un petit DataFrame minimal et vérifie qu'une
-règle de nettoyage précise est bien appliquée.
+Unit tests for the functions in transform.py.
+Each test builds a small minimal DataFrame and checks that a
+specific cleaning rule is correctly applied.
 """
 
 import pandas as pd
@@ -56,7 +56,7 @@ def test_transform_products_negative_num_ingredients_to_null():
 
     result = transform_products(df)
 
-    # La ligne avec -5 doit devenir NULL, l'autre reste inchangée
+    # The row with -5 must become NULL, the other stays unchanged
     assert pd.isna(
         result.loc[result["product_id"] == "P001", "num_ingredients"].iloc[0]
     )
@@ -80,7 +80,7 @@ def test_transform_products_status_standardized():
 
     result = transform_products(df)
 
-    # Les 3 variantes de casse doivent devenir identiques
+    # The 3 case variants must become identical
     assert result["status"].unique().tolist() == ["Active"]
 
 
@@ -91,7 +91,7 @@ def test_transform_products_mixed_date_formats():
             "product_name": ["A", "B"],
             "category": ["Flavor", "Flavor"],
             "subcategory": ["Sweet", "Sweet"],
-            "launch_date": ["2023-01-15", "15-12-2023"],  # formats différents
+            "launch_date": ["2023-01-15", "15-12-2023"],  # different formats
             "status": ["Active", "Active"],
             "num_ingredients": [5, 8],
             "primary_ingredient": ["Sugar", "Lemon"],
@@ -101,7 +101,7 @@ def test_transform_products_mixed_date_formats():
 
     result = transform_products(df)
 
-    # Les deux dates doivent être correctement parsées, aucune ne doit être NaT
+    # Both dates must be correctly parsed, neither should be NaT
     assert result["launch_date"].isna().sum() == 0
 
 
@@ -128,7 +128,7 @@ def test_transform_sales_resolves_duplicate_transaction_id():
 
     result = transform_sales(df, valid_product_ids=valid_ids)
 
-    # Les 2 lignes doivent être conservées, avec des IDs désormais uniques
+    # Both rows must be kept, with now-unique IDs
     assert len(result) == 2
     assert result["transaction_id"].is_unique
 
@@ -158,7 +158,7 @@ def test_transform_sales_removes_orphan_product_id():
     df = pd.DataFrame(
         {
             "transaction_id": ["T001", "T002"],
-            "product_id": ["P001", "P999"],  # P999 n'existe pas
+            "product_id": ["P001", "P999"],  # P999 does not exist
             "customer_id": ["C001", "C002"],
             "transaction_date": ["2024-01-01", "2024-01-02"],
             "quantity_kg": [10.0, 5.0],
@@ -188,7 +188,7 @@ def test_transform_feedback_ratings_out_of_range_to_null():
             "product_id": ["P001"],
             "customer_id": ["C001"],
             "feedback_date": ["2024-01-01"],
-            "quality_rating": [6.0],  # hors de [0, 5]
+            "quality_rating": [6.0],  # out of [0, 5]
             "performance_rating": [4.0],
             "value_rating": [4.0],
             "overall_satisfaction": [4.0],
@@ -201,7 +201,7 @@ def test_transform_feedback_ratings_out_of_range_to_null():
     result = transform_feedback(df, valid_product_ids=valid_ids)
 
     assert pd.isna(result["quality_rating"].iloc[0])
-    assert result["performance_rating"].iloc[0] == 4.0  # inchangée
+    assert result["performance_rating"].iloc[0] == 4.0  # unchanged
 
 
 def test_transform_feedback_standardizes_would_reorder():
