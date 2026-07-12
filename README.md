@@ -13,19 +13,18 @@ leo-hu-symrise-challenge/
 ├── data/                       # CSV sources (non versionnés si volumineux)
 ├── src/
 │   ├── config.py               # Chargement de config.yaml
-│   ├── extract.py              # Lecture des 4 CSV
-│   ├── transform.py            # Nettoyage et validation
-│   ├── load.py                 # Création du schéma + insertion SQLite
-│   └── main.py                 # Orchestration du pipeline complet
+│   ├── extract.py               # Lecture des 4 CSV
+│   ├── transform.py             # Nettoyage et validation
+│   ├── load.py                  # Création du schéma + insertion SQLite
+│   └── main.py                  # Orchestration du pipeline complet
 ├── sql/
-│   ├── schema.sql               # Définition des tables
-│   └── queries.sql              # Les 5 requêtes business
+│   ├── schema.sql                # Définition des tables
+│   └── queries.sql               # Les 5 requêtes business
 └── output/
-├── symrise.db                # Base de données finale
-├── pipeline.log               # Logs d'exécution
-├── data_quality_report.md     # Problèmes détectés et corrigés
-└── business_answers.md        # Réponses aux 5 questions
-
+    ├── symrise.db                 # Base de données finale
+    ├── pipeline.log                # Logs d'exécution
+    ├── data_quality_report.md      # Problèmes détectés et corrigés
+    └── business_answers.md         # Réponses aux 5 questions
 ---
 
 ## Setup
