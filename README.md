@@ -6,6 +6,7 @@ en Python + SQLite, avec réponses aux 5 questions business.
 ---
 
 ## Structure du projet
+'''
 leo-hu-symrise-challenge/
 ├── README.md
 ├── requirements.txt
@@ -25,7 +26,7 @@ leo-hu-symrise-challenge/
     ├── pipeline.log                # Logs d'exécution
     ├── data_quality_report.md      # Problèmes détectés et corrigés
     └── business_answers.md         # Réponses aux 5 questions
----
+'''
 
 ## Setup
 
